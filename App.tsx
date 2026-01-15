@@ -95,10 +95,10 @@ const App: React.FC = () => {
             Elite Persona Generator
           </div>
           <h1 className="text-4xl md:text-6xl font-serif font-bold text-white">
-            <span className="gold-text">互联网顶层人设</span>
+            <span className="gold-text">你的互联网顶层人设</span>
           </h1>
           <p className="text-gray-400 max-w-md mx-auto text-sm md:text-base font-light">
-             一款基于AI的讽刺生成器，一键生成“霸总”或“名媛”人设，制霸朋友圈。
+             互联网侦探出品，顶级多模态AI模型驱动，一键化身“霸总”或“名媛”，制霸抖音小红书。（广告合作小红书：netzhentan)
           </p>
         </header>
 
@@ -167,7 +167,7 @@ const App: React.FC = () => {
                     <label className="text-xs uppercase tracking-widest text-gray-500 font-bold mb-2 block">3. 简介增强（可选）</label>
                     <div className="flex flex-col gap-2">
                         <CheckboxOption 
-                            label="添加 '新晋XX卓越MCN总裁' 头衔" 
+                            label="添加 '新晋卓越MCN总裁' 头衔" 
                             checked={includeMCN} 
                             onChange={setIncludeMCN} 
                         />
