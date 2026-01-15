@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import OpenAI from "openai";
 import { PersonaType, PersonaData, GenerationOptions } from "../types";
 
 const SYSTEM_INSTRUCTION = `
@@ -21,35 +21,29 @@ You must adhere strictly to the "Internet Persona" tropes described below.
 *   **Vibe**: Pilates, Hermes, "Money is my confidence", "Change your circle to change your fate".
 
 ### INSTRUCTIONS
-1.  Receive a 'keyword' (e.g., "Coffee", "Meeting", "Dubai") and a 'type' (CEO or SOCIALITE).
-2.  Generate a JSON object containing a profile and 3 social media posts.
+1.  Receive a 'keyword' and a 'type'.
+2.  Generate a JSON object.
 3.  The content MUST be in CHINESE (Simplified).
 4.  The content must be cringey, pretentious, and use the specific vocabulary provided above.
-`;
 
-const RESPONSE_SCHEMA: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    idName: { type: Type.STRING, description: "The persona's display name (e.g., 顾景琛总, Momi Boss)" },
-    title: { type: Type.STRING, description: "Professional title or certification" },
-    tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-4 short profile tags" },
-    bio: { type: Type.STRING, description: "The profile biography/intro" },
-    location: { type: Type.STRING, description: "IP location (e.g., Dubai, Shanghai)" },
-    posts: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          content: { type: Type.STRING, description: "The text content of the social media post" },
-          imageDescription: { type: Type.STRING, description: "A short English description of the image for a placeholder (e.g., 'luxury watch steering wheel', 'pilates studio')" },
-          hashtags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Relevant hashtags" },
-          likes: { type: Type.STRING, description: "Fake like count (e.g., '1.2w')" },
-        }
-      }
+### OUTPUT FORMAT
+You must respond with a valid JSON object strictly matching this structure:
+{
+  "idName": "string (e.g. 顾景琛总)",
+  "title": "string (Professional title)",
+  "tags": ["string", "string", "string"],
+  "bio": "string (Profile biography)",
+  "location": "string (e.g. Dubai)",
+  "posts": [
+    {
+      "content": "string (Post text)",
+      "imageDescription": "string (Short English description for image generation)",
+      "hashtags": ["string"],
+      "likes": "string (e.g. '1.2w')"
     }
-  },
-  required: ["idName", "title", "tags", "bio", "location", "posts"]
-};
+  ]
+}
+`;
 
 export const generatePersonaProfile = async (
   keyword: string, 
@@ -61,44 +55,50 @@ export const generatePersonaProfile = async (
     throw new Error("API Key is missing");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  // Initialize OpenAI client for DashScope (Aliyun Qwen)
+  const openai = new OpenAI({
+    apiKey: apiKey,
+    baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    dangerouslyAllowBrowser: true // Required for client-side usage
+  });
 
   let extraInstructions = "";
   if (options.includeMCN) {
-    extraInstructions += " - In the bio, you MUST include a phrase similar to '新晋[Random City]卓越MCN总裁' (e.g., 新晋杭州卓越MCN总裁).\n";
+    extraInstructions += " - In the bio, you MUST include a phrase similar to '新晋[Random City]卓越MCN总裁'.\n";
   }
   if (options.includeShareholders) {
-    extraInstructions += " - In the bio, you MUST include a phrase similar to '前[Random Number]万粉成为我的精神股东' (e.g., 前30万粉成为我的精神股东).\n";
+    extraInstructions += " - In the bio, you MUST include a phrase similar to '前[Random Number]万粉成为我的精神股东'.\n";
   }
   if (options.includeStats) {
-    extraInstructions += " - In the bio, you MUST include realistic Height and Weight stats (e.g., 185cm/75kg for CEO, 168cm/45kg for Socialite).\n";
+    extraInstructions += " - In the bio, you MUST include realistic Height and Weight stats.\n";
   }
 
-  const prompt = `
+  const userPrompt = `
     Generate a satirical '${type}' persona based on the keyword: "${keyword}".
     Make it sound extremely pretentious and cliché.
     
-    Specific Requirements for BIO (Must Include if listed):
+    Specific Requirements for BIO:
     ${extraInstructions}
+    
+    IMPORTANT: Respond ONLY with the JSON object. Do not include markdown formatting like \`\`\`json.
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
-      }
+    const completion = await openai.chat.completions.create({
+      model: "qwen-flash",
+      messages: [
+        { role: "system", content: SYSTEM_INSTRUCTION },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" }
     });
 
-    const text = response.text;
+    const text = completion.choices[0].message.content;
     if (!text) throw new Error("No response generated");
     
     return JSON.parse(text) as PersonaData;
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("Qwen/DashScope API Error:", error);
     throw error;
   }
 };
