@@ -73,7 +73,7 @@ const App: React.FC = () => {
       });
       setResult(data);
     } catch (err) {
-      setError("生成失败，请重试。（请检查API Key是否正确）");
+      setError("生成失败，请重试。（请检查DASHSCOPE_API_KEY是否正确）");
       console.error(err);
     } finally {
       setLoading(false);

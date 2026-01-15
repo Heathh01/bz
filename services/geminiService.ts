@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import axios from "axios";
 import { PersonaType, PersonaData, GenerationOptions } from "../types";
 
 const SYSTEM_INSTRUCTION = `
@@ -25,43 +25,34 @@ You must adhere strictly to the "Internet Persona" tropes described below.
 2.  Generate a JSON object containing a profile and 3 social media posts.
 3.  The content MUST be in CHINESE (Simplified).
 4.  The content must be cringey, pretentious, and use the specific vocabulary provided above.
-`;
-
-const RESPONSE_SCHEMA: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    idName: { type: Type.STRING, description: "The persona's display name (e.g., 顾景琛总, Momi Boss)" },
-    title: { type: Type.STRING, description: "Professional title or certification" },
-    tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-4 short profile tags" },
-    bio: { type: Type.STRING, description: "The profile biography/intro" },
-    location: { type: Type.STRING, description: "IP location (e.g., Dubai, Shanghai)" },
-    posts: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          content: { type: Type.STRING, description: "The text content of the social media post" },
-          imageDescription: { type: Type.STRING, description: "A short English description of the image for a placeholder (e.g., 'luxury watch steering wheel', 'pilates studio')" },
-          hashtags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Relevant hashtags" },
-          likes: { type: Type.STRING, description: "Fake like count (e.g., '1.2w')" },
+5.  You must return ONLY the JSON object, without any additional explanation or text.
+6.  The JSON must have the following structure:
+    {
+      "idName": string, // The persona's display name (e.g., 顾景琛总, Momi Boss)
+      "title": string, // Professional title or certification
+      "tags": string[], // 3-4 short profile tags
+      "bio": string, // The profile biography/intro
+      "location": string, // IP location (e.g., Dubai, Shanghai)
+      "posts": [
+        {
+          "content": string, // The text content of the social media post
+          "imageDescription": string, // A short English description of the image for a placeholder (e.g., 'luxury watch steering wheel', 'pilates studio')
+          "hashtags": string[], // Relevant hashtags
+          "likes": string // Fake like count (e.g., '1.2w')
         }
-      }
+      ]
     }
-  },
-  required: ["idName", "title", "tags", "bio", "location", "posts"]
-};
+`;
 
 export const generatePersonaProfile = async (
   keyword: string, 
   type: PersonaType, 
   options: GenerationOptions
 ): Promise<PersonaData> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.DASHSCOPE_API_KEY;
   if (!apiKey) {
-    throw new Error("API Key is missing");
+    throw new Error("DASHSCOPE_API_KEY is missing");
   }
-
-  const ai = new GoogleGenAI({ apiKey });
 
   let extraInstructions = "";
   if (options.includeMCN) {
@@ -83,22 +74,40 @@ export const generatePersonaProfile = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
+    const response = await axios.post(
+      "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+      {
+        model: "qwen-flash",
+        input: {
+          messages: [
+            { role: "system", content: SYSTEM_INSTRUCTION },
+            { role: "user", content: prompt }
+          ]
+        },
+        parameters: {
+          result_format: "json",
+          temperature: 0.7,
+          top_p: 0.95,
+          max_tokens: 2000
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        }
       }
-    });
+    );
 
-    const text = response.text;
-    if (!text) throw new Error("No response generated");
+    const data = response.data;
+    if (!data.output || !data.output.text) {
+      throw new Error("No response generated");
+    }
     
+    const text = data.output.text;
     return JSON.parse(text) as PersonaData;
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("Qwen API Error:", error);
     throw error;
   }
 };
