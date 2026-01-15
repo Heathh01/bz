@@ -50,7 +50,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ data }) => {
                   {data.idName}
               </h2>
               <div className="text-xs text-gray-500 font-mono">
-                抖音号: {Math.floor(Math.random() * 1000000000)}
+                小红书: netzhentan
               </div>
             </div>
             
